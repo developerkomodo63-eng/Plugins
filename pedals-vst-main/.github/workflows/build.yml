@@ -1,0 +1,42 @@
+name: Build DevKomodo Pedals VST3
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build all pedals
+        run: cmake --build build --config Release --parallel
+
+      - name: Collect VST3 bundles
+        shell: bash
+        run: |
+          mkdir -p allvst3
+          find build -type d -name "VST3" -print0 | while IFS= read -r -d '' dir; do
+            cp -R "$dir"/* allvst3/ 2>/dev/null || true
+          done
+          echo "Built artifacts:"
+          find allvst3 -maxdepth 2 -mindepth 1 -print | sort
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DevKomodo-Pedals-${{ matrix.os }}
+          path: allvst3/**
