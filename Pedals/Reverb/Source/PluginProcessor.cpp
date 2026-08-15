@@ -80,8 +80,21 @@ void ReverbAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     {
         s.pitchBuffer.assign ((size_t) pitchBufferLength, 0.0f);
         s.writePos = 0;
-        s.taps[0] = { 0.0f, 0.0f };
-        s.taps[1] = { 0.5f, 0.0f }; // arranca desfasado medio grano del otro tap
+        const float grainSizeSamples = 0.04f * (float) sampleRate;
+        const auto wrapPosition = [pitchBufferLength] (float position) noexcept
+        {
+            while (position < 0.0f)
+                position += (float) pitchBufferLength;
+            while (position >= (float) pitchBufferLength)
+                position -= (float) pitchBufferLength;
+            return position;
+        };
+
+        // Los taps arrancan leyendo historia ya escrita. El primero parte
+        // un grano completo detras del write head; el segundo, medio grano
+        // detras. Asi el lector nunca consume muestras futuras.
+        s.taps[0] = { 0.0f, wrapPosition (-grainSizeSamples) };
+        s.taps[1] = { 0.5f, wrapPosition (-0.5f * grainSizeSamples) };
     }
     shimmerFeedbackBuffer.setSize ((int) spec.numChannels, samplesPerBlock);
     shimmerFeedbackBuffer.clear();
@@ -112,25 +125,33 @@ bool ReverbAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
 
 float ReverbAudioProcessor::processOctaveUp (ChannelShimmer& state, float input, float grainSizeSamples) noexcept
 {
-    state.pitchBuffer[(size_t) state.writePos] = input;
     const int bufferLength = (int) state.pitchBuffer.size();
+    if (bufferLength < 4 || grainSizeSamples < 4.0f)
+        return 0.0f;
+
+    state.pitchBuffer[(size_t) state.writePos] = input;
+
+    const auto wrapPosition = [bufferLength] (float position) noexcept
+    {
+        while (position < 0.0f)
+            position += (float) bufferLength;
+        while (position >= (float) bufferLength)
+            position -= (float) bufferLength;
+        return position;
+    };
 
     float output = 0.0f;
     for (auto& tap : state.taps)
     {
         tap.phase += 1.0f / grainSizeSamples;
+
         if (tap.phase >= 1.0f)
         {
             tap.phase -= 1.0f;
-            // reinicia el grano desde justo detras del cabezal de escritura
-            tap.readPos = (float) state.writePos - 1.0f;
-            if (tap.readPos < 0.0f)
-                tap.readPos += (float) bufferLength;
+            // Un grano de N muestras leido a 2x debe comenzar N muestras
+            // detras del write head. Asi nunca leemos muestras futuras.
+            tap.readPos = wrapPosition ((float) state.writePos - grainSizeSamples);
         }
-
-        tap.readPos += 2.0f; // el doble de velocidad = una octava arriba
-        while (tap.readPos >= (float) bufferLength)
-            tap.readPos -= (float) bufferLength;
 
         const int idx0 = (int) tap.readPos;
         const int idx1 = (idx0 + 1) % bufferLength;
@@ -138,14 +159,14 @@ float ReverbAudioProcessor::processOctaveUp (ChannelShimmer& state, float input,
         const float sampleValue = state.pitchBuffer[(size_t) idx0] * (1.0f - frac)
                                  + state.pitchBuffer[(size_t) idx1] * frac;
 
-        // ventana Hann: los dos granos se cruzan (uno sube mientras el
-        // otro baja) para que no haya clicks al reiniciar cada uno
         const float window = 0.5f * (1.0f - std::cos (juce::MathConstants<float>::twoPi * tap.phase));
         output += sampleValue * window;
+
+        tap.readPos = wrapPosition (tap.readPos + 2.0f);
     }
 
     state.writePos = (state.writePos + 1) % bufferLength;
-    return output;
+    return output * 0.5f;
 }
 
 void ReverbAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)

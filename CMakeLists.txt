@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(DevKomodoPedals VERSION 1.0.0 LANGUAGES CXX)
+project(DevKomodoPedals VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,6 +13,12 @@ endif()
 # Keep the package lean for GitHub runners and shipping builds.
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# This distribution is intentionally Windows-only. GitHub Actions and release
+# artifacts target 64-bit Windows VST3 with the MSVC toolchain.
+if(NOT WIN32)
+    message(FATAL_ERROR "DevKomodo Pedals is Windows-only and builds VST3 only.")
+endif()
 
 # Descarga JUCE UNA sola vez; todos los pedales de abajo la comparten.
 include(FetchContent)
@@ -76,45 +82,3 @@ add_subdirectory(Pedals/ToneSculptor)
 add_subdirectory(Pedals/ConsoleDrive)
 add_subdirectory(Pedals/CleanUpPro)
 
-function(devkomodo_apply_compile_profile target_name)
-    if(TARGET ${target_name})
-        set_target_properties(${target_name} PROPERTIES
-            CXX_STANDARD 17
-            CXX_STANDARD_REQUIRED YES
-            CXX_EXTENSIONS OFF)
-
-        if(MSVC)
-            target_compile_options(${target_name} PRIVATE
-                /O2
-                /Oi
-                /Oy
-                /GL
-                /Gy
-                /fp:fast)
-            target_link_options(${target_name} PRIVATE
-                /OPT:REF
-                /OPT:ICF)
-        else()
-            target_compile_options(${target_name} PRIVATE
-                -O3
-                -DNDEBUG
-                -ffast-math
-                -ffunction-sections
-                -fdata-sections)
-            if(APPLE)
-                target_link_options(${target_name} PRIVATE
-                    -Wl,-dead_strip)
-            else()
-                target_link_options(${target_name} PRIVATE
-                    -Wl,--gc-sections)
-            endif()
-        endif()
-    endif()
-endfunction()
-
-get_property(_devkomodo_targets DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
-foreach(_devkomodo_target IN LISTS _devkomodo_targets)
-    if(NOT _devkomodo_target MATCHES "^juce" AND TARGET ${_devkomodo_target})
-        devkomodo_apply_compile_profile(${_devkomodo_target})
-    endif()
-endforeach()
