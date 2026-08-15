@@ -47,9 +47,8 @@ public:
             const int id = presetBox.getSelectedId();
             if (id >= 2 && id - 2 < (int) factoryPresets.size())
                 applyPreset (factoryPresets[(size_t) id - 2]);
-        }
+        };
         presetBox.setTooltip ("Select a factory preset or MANUAL");
-;
         addAndMakeVisible (presetBox);
 
         if (apvts.getParameter ("INSTRUMENT") != nullptr)
@@ -293,7 +292,7 @@ private:
                 p = p.substring (0, 1).toUpperCase() + p.substring (1);
             parts.set (i, p);
         }
-        return parts.joinIntoString (' ');
+        return parts.joinIntoString (" ");
     }
 
 
@@ -356,7 +355,7 @@ private:
         const auto category = upper (name);
         if (category.contains ("REVERB")) names = juce::StringArray { "INIT", "ROOM", "PLATE", "HALL", "ARENA" };
         else if (category.contains ("DELAY")) names = juce::StringArray { "INIT", "SLAP", "ECHO", "WIDE", "TAPE" };
-        else if (category.contains ("CHORUS") || category.contains ("FLANGER") || category.contains ("PHASER") || category.contains ("VIBRATO")) names = juce::StringArray { "INIT", "CLASSIC", "MOTION", "WIDE", "JET" };
+        else if (category.contains ("CHORUS") || category.contains ("FLANGER") || category.contains ("PHASER") || category.contains ("VIBRATO")) names = juce::StringArray { "INIT", "CLASSIC", "MODERN", "EXTREME", "CUSTOM" };
         else if (category.contains ("FUZZ") || category.contains ("DISTORT") || category.contains ("OVERDRIVE")) names = juce::StringArray { "INIT", "CRUNCH", "RHYTHM", "LEAD", "HEAVY" };
         else if (category.contains ("COMPRESS")) names = juce::StringArray { "INIT", "GLUE", "PUNCH", "SMOOTH", "LIMIT" };
         else if (category.contains ("EQ")) names = juce::StringArray { "INIT", "TIGHT", "BRIGHT", "PRESENCE", "SCULPT" };
